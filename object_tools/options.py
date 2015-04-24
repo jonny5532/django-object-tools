@@ -1,6 +1,9 @@
 from django import forms
 from django.conf import settings
-from django.conf.urls import patterns, url
+try:
+    from django.conf.urls.defaults import patterns, url
+except ImportError:
+    from django.conf.urls import patterns, url
 from django.contrib.admin import helpers
 from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse
@@ -24,6 +27,18 @@ class ObjectTool(object):
         self.model = model
         self.modeladmin = site._registry.get(model)
 
+        if self.modeladmin:
+            self.modeladmin_changelist_view = self.modeladmin.changelist_view
+            self.modeladmin.changelist_view = self.changelist_view
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Simple wrapper to pass request to admin/change_list.html
+        """
+        return self.modeladmin_changelist_view(
+            request, extra_context={'request': request}
+        )
+
     def construct_form(self, request):
         """
         Constructs form from POST method using self.form_class.
@@ -32,7 +47,7 @@ class ObjectTool(object):
             return None
 
         if request.method == 'POST':
-            form = self.form_class(self.model, request.POST)
+            form = self.form_class(self.model, request.POST, request.FILES)
         else:
             form = self.form_class(self.model)
         return form
@@ -45,18 +60,20 @@ class ObjectTool(object):
         Returns True if the given request has permission to use the tool.
         Can be overriden by the user in subclasses.
         """
-        return user.has_perm(self.model._meta.app_label + '.' + \
-                self.get_permission())
+        return user.has_perm(
+            self.model._meta.app_label + '.' + self.get_permission()
+        )
 
     def media(self, form):
         """
         Collects admin and form media.
         """
-        js = ['js/core.js', 'js/admin/RelatedObjectLookups.js',
-              'js/jquery.min.js', 'js/jquery.init.js']
+        js = ['admin/js/core.js', 'admin/js/admin/RelatedObjectLookups.js',
+              'admin/js/jquery.min.js', 'admin/js/jquery.init.js']
 
-        media = forms.Media(js=['%s%s' % (settings.ADMIN_MEDIA_PREFIX, url) \
-                for url in js])
+        media = forms.Media(
+            js=['%s%s' % (settings.STATIC_URL, u) for u in js],
+        )
 
         if form:
             for name, field in form.fields.iteritems():
@@ -66,7 +83,7 @@ class ObjectTool(object):
 
     def reverse(self):
         info = self.model._meta.app_label, self.model._meta.module_name, \
-                self.name
+            self.name
         return reverse('object-tools:%s_%s_%s' % info)
 
     def _urls(self):
@@ -74,11 +91,9 @@ class ObjectTool(object):
         URL patterns for tool linked to _view method.
         """
         info = self.model._meta.app_label, self.model._meta.module_name, \
-                self.name
-        urlpatterns = patterns('',
-            url(r'^%s/$' % self.name,
-                self._view,
-                name='%s_%s_%s' % info),
+            self.name
+        urlpatterns = patterns(
+            '', url(r'^%s/$' % self.name, self._view, name='%s_%s_%s' % info),
         )
         return urlpatterns
     urls = property(_urls)
@@ -101,8 +116,9 @@ class ObjectTool(object):
             'app_label': app_label,
             'media': media,
             'form': form,
-            'changelist_url': reverse('admin:%s_%s_changelist' % \
-                    (app_label, object_name))
+            'changelist_url': reverse('admin:%s_%s_changelist' % (
+                app_label, object_name
+            ))
         }
 
         # Pass along fieldset if sepcififed.

@@ -26,6 +26,7 @@ class TestTool(object_tools.ObjectTool):
 
 class TestMediaTool(object_tools.ObjectTool):
     name = 'test_media_tool'
+    label = ''
     form_class = TestMediaForm
 
     def view(self):
@@ -36,5 +37,17 @@ class TestInvalidTool(object_tools.ObjectTool):
     pass
 
 
-object_tools.tools.register(TestTool)
-object_tools.tools.register(TestMediaTool)
+try:
+    from django.apps import config
+except ImportError:
+    config = None
+
+if config:
+    def ready(cls):
+        object_tools.tools.register(TestTool)
+        object_tools.tools.register(TestMediaTool)
+    object_tools.apps.ObjectToolsAppConfig.ready = ready
+
+else:
+    object_tools.tools.register(TestTool)
+    object_tools.tools.register(TestMediaTool)

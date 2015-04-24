@@ -7,14 +7,14 @@ from object_tools import tools
 register = template.Library()
 
 
-@register.inclusion_tag('object_tools/inclusion_tags/object_tools.html')
-def object_tools(model, user, exclude=None):
+@register.inclusion_tag('object_tools/inclusion_tags/object_tools.html', takes_context=True)
+def object_tools(context, model, user, exclude=None):
     if inspect.isclass(model):
         model_class = model
     else:
         model_class = model.__class__
 
-    if tools._registry.has_key(model_class):
+    if model_class in tools._registry:
         object_tool_classes = tools._registry[model_class]
     else:
         object_tool_classes = []
@@ -29,4 +29,10 @@ def object_tools(model, user, exclude=None):
         if tool.has_permission(user):
             allowed_tools.append(tool)
 
-    return {'object_tools': allowed_tools}
+    ret_dict = {'object_tools': allowed_tools}
+    if 'request' in context:
+        ret_dict.update({
+            'request': context['request']
+        })
+
+    return ret_dict
